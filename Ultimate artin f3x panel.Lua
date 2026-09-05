@@ -1,5 +1,5 @@
 -- ============================================
---  Ultimate artin f3x panel - Panel با ۷ دکمه
+--  Ultimate artin f3x panel - Panel با ۸ دکمه
 -- ============================================
 
 local Players = game:GetService("Players")
@@ -15,8 +15,8 @@ gui.Parent = player:WaitForChild("PlayerGui")
 -- پنل اصلی
 -- ============================================
 local main = Instance.new("Frame")
-main.Size = UDim2.new(0, 250, 0, 340)
-main.Position = UDim2.new(0.5, -125, 0.5, -170)
+main.Size = UDim2.new(0, 250, 0, 370)
+main.Position = UDim2.new(0.5, -125, 0.5, -185)
 main.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
 main.BorderSizePixel = 0
 main.ClipsDescendants = true
@@ -106,7 +106,7 @@ local function createButton(text, yPos, color, link)
     btn.BorderSizePixel = 0
     btn.Parent = main
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
-    
+
     btn.MouseButton1Click:Connect(function()
         loadstring(game:HttpGet(link))()
     end)
@@ -114,28 +114,34 @@ local function createButton(text, yPos, color, link)
 end
 
 -- ============================================
--- دکمه‌ها (با لینک جدید برای گزینه اول)
+-- دکمه‌ها (همه با رنگ یکسان)
 -- ============================================
-createButton("📌 F3x admin", 0.12, Color3.fromRGB(40, 40, 60), 
+local btnColor = Color3.fromRGB(40, 40, 60)
+
+createButton("📌 F3x admin", 0.10, btnColor, 
     "https://raw.githubusercontent.com/amrica1gd-byte/My-script/main/Artin%20f3x%20panel.lua")
 
-createButton("🔧 Give btools", 0.24, Color3.fromRGB(40, 40, 60), 
+createButton("🔧 Give btools", 0.21, btnColor, 
     "https://gist.githubusercontent.com/amrica1gd-byte/86f9b1dae264b0531b7b7e90a20ad227/raw/4d2e4b724666929d0809d07d2aa9d7c0dd55f0de/Artin%2520f3x.Lua")
 
-createButton("🗺️ Map f3x gui", 0.36, Color3.fromRGB(40, 40, 60), 
+createButton("🗺️ Map f3x gui", 0.32, btnColor, 
     "https://api.rubis.app/v2/scrap/swW60uW8gffCYePI/raw")
 
-createButton("🚪 Back door f3x", 0.48, Color3.fromRGB(40, 40, 60), 
+createButton("🚪 Back door f3x", 0.43, btnColor, 
     "https://gist.githubusercontent.com/zibranIndonesia/36cd617e0f320cc86f070a9c6dc77036/raw/e81836fb347cc73be6cde23e60396d6f25850cf2/zibranF3X%2520Gui")
 
-createButton("💬 Spam gui", 0.60, Color3.fromRGB(40, 40, 60), 
+createButton("💬 Spam gui", 0.54, btnColor, 
     "https://gist.githubusercontent.com/amrica1gd-byte/e0d7c29a247ae105f8c5bf9301f3cc1d/raw/5109c2dc20a224da859216b8b64a59e65da1ea36/Spam%2520gui%2520duble.Lua")
 
-createButton("🔨 F3X BAN HAMMER (R6)", 0.72, Color3.fromRGB(40, 40, 60), 
+createButton("🔨 F3X BAN HAMMER (R6)", 0.65, btnColor, 
     "https://raw.githubusercontent.com/ermiya1231/Script1/refs/heads/main/newprojectbro")
 
-createButton("🔥 Rc7_team f3x", 0.84, Color3.fromRGB(40, 40, 60), 
+createButton("🔥 Rc7_team f3x", 0.76, btnColor, 
     "https://rawscripts.net/raw/Universal-Script-F3x-gui-rianz-rc7-216190")
+
+-- دکمه جدید با رنگ یکسان
+createButton("Artin spam now", 0.87, btnColor, 
+    "https://gist.githubusercontent.com/amrica1gd-byte/34bdf219454552ae2eb43fb866270195/raw/094ad6724066bdaebbcb36a3dd93e9efe00e70f2/ARTIN%2520spam%2520now")
 
 -- ============================================
 -- انیمیشن رنگ عنوان
