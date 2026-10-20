@@ -1,0 +1,970 @@
+--================================================--
+-- ⚡ Pro Click Panel | TABBED + SAME SIZE MOBILE/PC
+--================================================--
+
+--// 1. Services
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
+
+local LocalPlayer = Players.LocalPlayer
+
+--// 2. FIXED SIZE (یک اندازه برای موبایل و پی‌سی)
+local MAIN_W = 280
+local MAIN_H = 380
+
+--// 3. States
+local xrayEnabled = false
+local noclipEnabled = false
+local noclipConn = nil
+
+local instantPromptEnabled = false
+local originalHoldTimes = {}
+
+local swimDisabled = false
+local swimConnections = {}
+
+local killAuraEnabled = false
+local killAuraConn = nil
+
+local npcJumpEnabled = false
+local npcJumpConn = nil
+
+local climbEnabled = false
+local climbConn = nil
+local ghostTruss = nil
+
+local fullBrightEnabled = false
+local brightLoopConn = nil
+local originalLightingSettings = {
+    Brightness = Lighting.Brightness,
+    ClockTime = Lighting.ClockTime,
+    FogEnd = Lighting.FogEnd,
+    GlobalShadows = Lighting.GlobalShadows,
+    OutdoorAmbient = Lighting.OutdoorAmbient
+}
+
+local weightEnabled = false
+local weightConn = nil
+local ghostLoopConn = nil
+local charMassConn = nil
+
+local wallWalkEnabled = false
+
+local grabtoolsEnabled = false
+local grabtoolsFunc = nil
+
+local frozenParts = {}
+
+--// Colors
+local BLUE = Color3.fromRGB(70, 140, 255)
+local RED = Color3.fromRGB(255, 90, 90)
+local GREEN = Color3.fromRGB(80, 200, 120)
+local TAB_IDLE = Color3.fromRGB(45, 45, 55)
+
+--// 4. Helpers
+local function partowner(part)
+    return part.ReceiveAge == 0
+end
+
+local function isnpc(ins)
+    local humanoid = ins:FindFirstChildOfClass("Humanoid")
+    local player = Players:GetPlayerFromCharacter(ins)
+    return humanoid and not player
+end
+
+local function addCorner(parent, radius)
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, radius)
+    c.Parent = parent
+    return c
+end
+
+--// 5. GUI Create
+local targetParent = (typeof(gethui) == "function" and gethui()) or game:GetService("CoreGui")
+pcall(function()
+    local old = targetParent:FindFirstChild("ProClickGUI")
+    if old then old:Destroy() end
+end)
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "ProClickGUI"
+gui.ResetOnSpawn = false
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.IgnoreGuiInset = true
+gui.DisplayOrder = 999
+gui.Parent = targetParent
+
+local main = Instance.new("Frame")
+main.Name = "Main"
+main.Size = UDim2.fromOffset(MAIN_W, MAIN_H) -- سایز فیکس پیکسلی
+main.Position = UDim2.new(0.5, 0, 0.5, 0) -- وسط صفحه
+main.AnchorPoint = Vector2.new(0.5, 0.5) -- برای یکسان بودن موبایل/پی‌سی
+main.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+main.BorderSizePixel = 0
+main.Active = true
+main.ClipsDescendants = true
+main.Parent = gui
+addCorner(main, 14)
+
+local stroke = Instance.new("UIStroke")
+stroke.Thickness = 1
+stroke.Transparency = 0.4
+stroke.Color = Color3.fromRGB(120, 120, 160)
+stroke.Parent = main
+
+--// 6. Notify (وسط پایین برای موبایل و پی‌سی)
+local function notify(text)
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.fromOffset(260, 40)
+    label.AnchorPoint = Vector2.new(0.5, 1)
+    label.Position = UDim2.new(0.5, 0, 1, -15)
+    label.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+    label.TextColor3 = Color3.new(1, 1, 1)
+    label.Text = text
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 14
+    label.Parent = gui
+    addCorner(label, 8)
+    task.delay(3, function() if label then label:Destroy() end end)
+end
+
+--// 7. Drag (موس + تاچ)
+do
+    local dragging, dragStart, startPos
+    local function update(input)
+        local delta = input.Position - dragStart
+        main.Position = UDim2.new(
+            startPos.X.Scale, startPos.X.Offset + delta.X,
+            startPos.Y.Scale, startPos.Y.Offset + delta.Y
+        )
+    end
+    main.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = main.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            update(input)
+        end
+    end)
+end
+
+--// 8. Title + Collapse + Close
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, -70, 0, 32)
+title.Position = UDim2.new(0, 12, 0, 0)
+title.BackgroundTransparency = 1
+title.Text = "Pro click panel  by artin"
+title.Font = Enum.Font.GothamBold
+title.TextSize = 15
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.TextColor3 = Color3.fromRGB(255, 200, 80)
+title.Parent = main
+
+local collapseBtn = Instance.new("TextButton")
+collapseBtn.Size = UDim2.fromOffset(24, 24)
+collapseBtn.Position = UDim2.new(1, -30, 0, 5)
+collapseBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+collapseBtn.Text = "-"
+collapseBtn.TextColor3 = Color3.new(1, 1, 1)
+collapseBtn.Font = Enum.Font.GothamBold
+collapseBtn.TextSize = 18
+collapseBtn.Parent = main
+addCorner(collapseBtn, 6)
+
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.fromOffset(24, 24)
+closeBtn.Position = UDim2.new(1, -58, 0, 5)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+closeBtn.Text = "X"
+closeBtn.TextColor3 = Color3.new(1, 1, 1)
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 13
+closeBtn.Parent = main
+addCorner(closeBtn, 6)
+closeBtn.MouseButton1Click:Connect(function()
+    gui:Destroy()
+end)
+
+--// 9. Tab Bar + Content Holder
+local tabBar = Instance.new("Frame")
+tabBar.Name = "TabBar"
+tabBar.Size = UDim2.new(1, -20, 0, 36)
+tabBar.Position = UDim2.new(0, 10, 0, 34)
+tabBar.BackgroundTransparency = 1
+tabBar.Parent = main
+
+local tabLayout = Instance.new("UIListLayout")
+tabLayout.FillDirection = Enum.FillDirection.Horizontal
+tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+tabLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+tabLayout.Padding = UDim.new(0, 5)
+tabLayout.SortOrder = Enum.SortOrder.LayoutOrder
+tabLayout.Parent = tabBar
+
+local contentHolder = Instance.new("Frame")
+contentHolder.Name = "Content"
+contentHolder.Size = UDim2.new(1, -10, 1, -80)
+contentHolder.Position = UDim2.new(0, 5, 0, 74)
+contentHolder.BackgroundTransparency = 1
+contentHolder.ClipsDescendants = true
+contentHolder.Parent = main
+
+--// 10. Tab System
+local tabButtons = {}
+local tabPages = {}
+local currentTab = 1
+
+local function selectTab(index)
+    currentTab = index
+    for i, page in pairs(tabPages) do
+        page.Visible = (i == index)
+    end
+    for i, btn in pairs(tabButtons) do
+        if i == index then
+            btn.BackgroundColor3 = BLUE
+        else
+            btn.BackgroundColor3 = TAB_IDLE
+        end
+    end
+end
+
+local function createTabPage(tabName, order)
+    local tabBtn = Instance.new("TextButton")
+    tabBtn.Size = UDim2.new(0.25, -4, 1, 0)
+    tabBtn.LayoutOrder = order
+    tabBtn.BackgroundColor3 = TAB_IDLE
+    tabBtn.Text = tabName
+    tabBtn.TextColor3 = Color3.new(1, 1, 1)
+    tabBtn.Font = Enum.Font.GothamBold
+    tabBtn.TextSize = 12
+    tabBtn.BorderSizePixel = 0
+    tabBtn.Parent = tabBar
+    addCorner(tabBtn, 8)
+
+    local page = Instance.new("ScrollingFrame")
+    page.Name = tabName
+    page.Size = UDim2.new(1, 0, 1, 0)
+    page.BackgroundTransparency = 1
+    page.BorderSizePixel = 0
+    page.ScrollBarThickness = 3
+    page.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 120)
+    page.CanvasSize = UDim2.new(0, 0, 0, 0)
+    page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    page.ScrollingDirection = Enum.ScrollingDirection.Y
+    page.Visible = false
+    page.Parent = contentHolder
+
+    local pad = Instance.new("UIPadding")
+    pad.PaddingTop = UDim.new(0, 5)
+    pad.PaddingLeft = UDim.new(0, 5)
+    pad.PaddingRight = UDim.new(0, 5)
+    pad.PaddingBottom = UDim.new(0, 10)
+    pad.Parent = page
+
+    local list = Instance.new("UIListLayout")
+    list.FillDirection = Enum.FillDirection.Vertical
+    list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    list.SortOrder = Enum.SortOrder.LayoutOrder
+    list.Padding = UDim.new(0, 8)
+    list.Parent = page
+
+    tabButtons[order] = tabBtn
+    tabPages[order] = page
+
+    tabBtn.MouseButton1Click:Connect(function()
+        selectTab(order)
+    end)
+
+    return page
+end
+
+-- ساخت 4 تب
+local tabMain = createTabPage("⚡ Main", 1)
+local tabPlayer = createTabPage("🙋 Player", 2)
+local tabCombat = createTabPage("💀 Combat", 3)
+local tabWorld = createTabPage("🌍 World", 4)
+
+--// 11. Button Template (Auto Layout برای تب‌ها)
+local orderCounters = {}
+local function createButton(text, color, parent)
+    orderCounters[parent] = (orderCounters[parent] or 0) + 1
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -10, 0, 38) -- 38px برای راحتی تاچ موبایل
+    btn.LayoutOrder = orderCounters[parent]
+    btn.BackgroundColor3 = color
+    btn.Text = text
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 13
+    btn.BorderSizePixel = 0
+    btn.Parent = parent
+    addCorner(btn, 10)
+    local s = Instance.new("UIStroke")
+    s.Thickness = 1
+    s.Transparency = 0.7
+    s.Color = Color3.new(1,1,1)
+    s.Parent = btn
+    return btn
+end
+
+local function setToggle(btn, enabled, onText, offText)
+    btn.Text = enabled and onText or offText
+    btn.BackgroundColor3 = enabled and GREEN or RED
+end
+
+--// 12. ساخت دکمه‌ها داخل تب‌ها
+
+-- TAB 1: Main
+local fireBtn = createButton("🔥 Fire ClickDetectors", BLUE, tabMain)
+local fireAllPromptsBtn = createButton("✨ Fire All Prompts", BLUE, tabMain)
+local firetouchBtn = createButton("🔥 Fire Touch Interests", BLUE, tabMain)
+local glitchtoolBtn = createButton("🔗 Glitch Tool Attacher", BLUE, tabMain)
+local promptBtn = createButton("⚡ Instant Prompt: OFF", RED, tabMain)
+local grabtoolsBtn = createButton("🎒 Grabtools: OFF", RED, tabMain)
+
+-- TAB 2: Player
+local noclipBtn = createButton("👻 NoClip: OFF", RED, tabPlayer)
+local climbBtn = createButton("🧗 Spiderman: OFF", RED, tabPlayer)
+local wallWalkBtn = createButton("🧗 Walk On Walls: OFF", RED, tabPlayer)
+local swimBtn = createButton("🌊 Swim Disable: OFF", RED, tabPlayer)
+local equipToolsBtn = createButton("🎒 Equip All Tools", BLUE, tabPlayer)
+local dropToolsBtn = createButton("🗑️ Drop All Tools", BLUE, tabPlayer)
+
+-- TAB 3: Combat
+local killBtn = createButton("💀 NPC Kill Aura: OFF", RED, tabCombat)
+local npcJumpBtn = createButton("🕺 NPC Jump Aura: OFF", RED, tabCombat)
+
+-- TAB 4: World
+local xrayBtn = createButton("💎 X-Ray Vision: OFF", RED, tabWorld)
+local fullBrightBtn = createButton("☀️ FullBright: OFF", RED, tabWorld)
+local weightBtn = createButton("🛸 Titan Mass: OFF", RED, tabWorld)
+local tpUnanchoredBtn = createButton("📦 Bring Unanchored Objects", BLUE, tabWorld)
+-- تب پیش‌فرض
+selectTab(1)
+
+--// 13. Collapse Logic
+local isCollapsed = false
+local originalSize = UDim2.fromOffset(MAIN_W, MAIN_H)
+local collapsedSize = UDim2.fromOffset(MAIN_W, 34)
+
+collapseBtn.MouseButton1Click:Connect(function()
+    isCollapsed = not isCollapsed
+    collapseBtn.Text = isCollapsed and "+" or "-"
+    TweenService:Create(main, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+        Size = isCollapsed and collapsedSize or originalSize
+    }):Play()
+end)
+
+-------------------------------------------------
+-- FEATURES LOGIC
+-------------------------------------------------
+
+-- 1) Fire ClickDetectors
+fireBtn.MouseButton1Click:Connect(function()
+for _, d in ipairs(workspace:GetDescendants()) do
+		if d:IsA("ClickDetector") then
+			pcall(function() fireclickdetector(d) end)
+		end
+	end
+    notify("🔥 ClickDetectors Fired!")
+end)
+glitchtoolBtn.MouseButton1Click:Connect(function()
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local LocalPlayer = Players.LocalPlayer
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+local root = Character and Character:FindFirstChild("HumanoidRootPart")
+    
+    if root and humanoid then
+        for _, item in pairs(Workspace:GetDescendants()) do
+            if item:IsA("Tool") and not item:IsDescendantOf(Character) and not item:IsDescendantOf(LocalPlayer:FindFirstChild("Backpack")) then
+                local handle = item:FindFirstChild("Handle") or item:FindFirstChildWhichIsA("BasePart")
+                if handle.Anchored then
+                    handle.CFrame = root.CFrame
+                    task.wait(0.05)
+                    humanoid:EquipTool(item)
+                    item.Parent = LocalPlayer:WaitForChild("Backpack")
+                end
+            end
+        end
+    end
+    notify("🔗 Attached Glitch Tools!")
+end)
+-- 2) Fire All ProximityPrompts
+fireAllPromptsBtn.MouseButton1Click:Connect(function()
+    if not fireproximityprompt then
+        notify("❌ Executor شما fireproximityprompt ندارد")
+        return
+    end
+    local count = 0
+    for _, prompt in ipairs(Workspace:GetDescendants()) do
+        if prompt:IsA("ProximityPrompt") then
+            pcall(function()
+                fireproximityprompt(prompt)
+                count += 1
+            end)
+        end
+    end
+    notify("✨ Fired "..count.." Prompts!")
+end)
+
+-- 3) Fire Touch
+firetouchBtn.MouseButton1Click:Connect(function()
+    if not firetouchinterest then
+        notify("❌ Executor شما firetouchinterest ندارد")
+        return
+    end
+    local character = LocalPlayer.Character
+    local root = character and (character:FindFirstChild("HumanoidRootPart") or character:FindFirstChildWhichIsA("BasePart"))
+    if not root then return end
+    local count = 0
+    for _, v in ipairs(Workspace:GetDescendants()) do
+        if v:IsA("TouchTransmitter") then
+            local part = v.Parent
+            if part and part:IsA("BasePart") then
+                task.spawn(function()
+                    pcall(function()
+                        firetouchinterest(part, root, 0)
+                        task.wait()
+                        firetouchinterest(part, root, 1)
+                    end)
+                end)
+                count += 1
+            end
+        end
+    end
+    notify("🔥 Fired "..count.." Touches!")
+end)
+
+-- 4) Instant Prompt
+local function applyPromptState(prompt)
+    if not prompt:IsA("ProximityPrompt") then return end
+    if originalHoldTimes[prompt] == nil then
+        originalHoldTimes[prompt] = prompt.HoldDuration
+    end
+    prompt.HoldDuration = instantPromptEnabled and 0 or originalHoldTimes[prompt]
+end
+local function refreshAllPrompts()
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("ProximityPrompt") then applyPromptState(obj) end
+    end
+end
+Workspace.DescendantAdded:Connect(function(obj)
+    if obj:IsA("ProximityPrompt") then task.wait() applyPromptState(obj) end
+end)
+promptBtn.MouseButton1Click:Connect(function()
+    instantPromptEnabled = not instantPromptEnabled
+    setToggle(promptBtn, instantPromptEnabled, "⚡ Instant Prompt: ON", "⚡ Instant Prompt: OFF")
+    refreshAllPrompts()
+end)
+
+-- 5) Grabtools
+grabtoolsBtn.MouseButton1Click:Connect(function()
+    grabtoolsEnabled = not grabtoolsEnabled
+    setToggle(grabtoolsBtn, grabtoolsEnabled, "🎒 Grabtools: ON", "🎒 Grabtools: OFF")
+    
+    if grabtoolsEnabled then
+        notify("Grabtools ON 🎒")
+        
+        -- اجرای یک پروسه جداگانه که بازی رو فریز و لگ نمی‌کنه
+        task.spawn(function()
+            while grabtoolsEnabled do
+                local char = LocalPlayer.Character
+                local humanoid = char and char:FindFirstChildWhichIsA("Humanoid")
+                
+                -- چک کردن زنده بودن کاراکتر
+                if humanoid and humanoid.Health > 0 then
+                    -- اسکن کردن Workspace
+                    for _, item in ipairs(Workspace:GetChildren()) do
+                        if item:IsA("BackpackItem") and item:FindFirstChild("Handle") then
+                            pcall(function() 
+                                humanoid:EquipTool(item) 
+                            end)
+                        end
+                    end
+                end
+                
+                -- این عدد سرعت اسکن هست. 0.2 یعنی 5 بار در ثانیه که هم فوق‌العاده سریعه هم هیچ لگی نمیده
+                task.wait(0.2) 
+            end
+        end)
+        
+    else
+        notify("Grabtools OFF")
+    end
+end)
+
+-- 6) NoClip
+local function toggleNoclip()
+    if noclipEnabled then
+        noclipConn = RunService.Stepped:Connect(function()
+            if noclipEnabled and LocalPlayer.Character then
+                for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
+                    if part:IsA("BasePart") and part.CanCollide then part.CanCollide = false end
+                end
+            end
+        end)
+        notify("NoClip ON 👻")
+    else
+        if noclipConn then noclipConn:Disconnect() noclipConn = nil end
+        if LocalPlayer.Character then
+            for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
+                if part:IsA("BasePart") then part.CanCollide = true end
+            end
+        end
+        notify("NoClip OFF ✅")
+    end
+end
+noclipBtn.MouseButton1Click:Connect(function()
+    noclipEnabled = not noclipEnabled
+    setToggle(noclipBtn, noclipEnabled, "👻 NoClip: ON", "👻 NoClip: OFF")
+    toggleNoclip()
+end)
+
+-- 7) Spiderman
+local function toggleClimb()
+    if climbEnabled then
+        pcall(function()
+            local sound = Instance.new("Sound")
+            sound.SoundId = "rbxassetid://132085489682908"
+            sound.Volume = 10
+            sound.Parent = Workspace
+            sound:Play()
+        end)
+        ghostTruss = Instance.new("TrussPart")
+        ghostTruss.Name = "GhostTruss_Client"
+        ghostTruss.Transparency = 1
+        ghostTruss.Size = Vector3.new(2, 2, 2)
+        ghostTruss.CanCollide = false
+        ghostTruss.Anchored = true
+        ghostTruss.Parent = Workspace
+        local lastWallPos, lastWallNorm = nil, nil
+        climbConn = RunService.RenderStepped:Connect(function()
+            local char = LocalPlayer.Character
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if not root or not hum then return end
+            local rayparams = RaycastParams.new()
+            rayparams.FilterDescendantsInstances = {char, ghostTruss}
+            rayparams.FilterType = Enum.RaycastFilterType.Exclude
+            local result = Workspace:Raycast(root.Position, root.CFrame.LookVector * 2.5, rayparams)
+            if result then
+                lastWallPos = result.Position
+                lastWallNorm = result.Normal
+                ghostTruss.CanCollide = true
+                ghostTruss.CFrame = CFrame.new(result.Position, result.Position + result.Normal)
+            else
+                if hum:GetState() == Enum.HumanoidStateType.Climbing and lastWallPos then
+                    ghostTruss.CFrame = CFrame.new(lastWallPos + Vector3.new(0, 1.5, 0), lastWallPos + lastWallNorm + Vector3.new(0, 1.5, 0))
+                    ghostTruss.CanCollide = true
+                else
+                    ghostTruss.CanCollide = false
+                    ghostTruss.CFrame = CFrame.new(0, -1000, 0)
+                end
+            end
+        end)
+        notify("Spiderman ON 🧗")
+    else
+        if climbConn then climbConn:Disconnect() climbConn = nil end
+        if ghostTruss then ghostTruss:Destroy() ghostTruss = nil end
+        notify("Spiderman OFF ✅")
+    end
+end
+climbBtn.MouseButton1Click:Connect(function()
+    climbEnabled = not climbEnabled
+    setToggle(climbBtn, climbEnabled, "🧗 Spiderman: ON", "🧗 Spiderman: OFF")
+    toggleClimb()
+end)
+
+-- 8) Walk On Walls
+wallWalkBtn.MouseButton1Click:Connect(function()
+    wallWalkEnabled = not wallWalkEnabled
+    setToggle(wallWalkBtn, wallWalkEnabled, "🧗 Walk On Walls: ON", "🧗 Walk On Walls: OFF")
+    if wallWalkEnabled then
+        pcall(function()
+            local sound = Instance.new("Sound")
+            sound.SoundId = "rbxassetid://132085489682908"
+            sound.Parent = Workspace
+            sound:Play()
+        end)
+        notify("Loading Wall Walker... 🧗")
+        pcall(function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/ermiya1231/Script1/refs/heads/main/WallWalk"))()
+        end)
+    else
+        notify("Cleaning WallWalk... ⚡")
+        pcall(function()
+            _G.WallWalkerEnabled = false
+            if _G.WallWalk then _G.WallWalk:Disconnect() _G.WallWalk = nil end
+            Workspace.Gravity = 196.2
+            local char = LocalPlayer.Character
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+            local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+            if char and root and humanoid and humanoid.Health > 0 then
+                local savedCFrame = root.CFrame * CFrame.new(0, 3, 0)
+                humanoid.Health = 0
+                local conn
+                conn = LocalPlayer.CharacterAdded:Connect(function(newChar)
+                    local newRoot = newChar:WaitForChild("HumanoidRootPart", 5)
+                    if newRoot then
+                        task.wait(0.15)
+                        newRoot.CFrame = savedCFrame
+                        notify("Restored! ✅")
+                    end
+                    conn:Disconnect()
+                end)
+            end
+        end)
+    end
+end)
+
+-- 9) Swim Disable
+local function removeBodyForces(character)
+    for _, obj in ipairs(character:GetDescendants()) do
+        if obj:IsA("BodyVelocity") or obj:IsA("BodyForce") or obj:IsA("BodyPosition") or obj:IsA("VectorForce") or obj:IsA("AlignPosition") or obj:IsA("AlignOrientation") then
+            pcall(function() obj:Destroy() end)
+        end
+    end
+end
+local function isWaterPart(obj)
+    local ok, isWater = pcall(function()
+        return (obj.Material == Enum.Material.Water) or (string.find(string.lower(obj.Name), "water") ~= nil)
+    end)
+    return ok and isWater
+end
+local function hideWaterPartsClientSide()
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("BasePart") and isWaterPart(obj) then
+            pcall(function() obj.LocalTransparencyModifier = 1 obj.CanCollide = false end)
+        end
+    end
+end
+local function unhideWaterPartsClientSide()
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("BasePart") and isWaterPart(obj) then
+            pcall(function() obj.LocalTransparencyModifier = 0 end)
+        end
+    end
+end
+local function disableSwimImmediate(character)
+    if not character or not character.Parent then return end
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    local root = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso")
+    if humanoid then
+        removeBodyForces(character)
+        pcall(function()
+            humanoid:ChangeState(Enum.HumanoidStateType.Running)
+            humanoid:SetStateEnabled(Enum.HumanoidStateType.Swimming, false)
+        end)
+        if root then
+            pcall(function()
+                root.CFrame = root.CFrame + Vector3.new(0, 3, 0)
+                root.Velocity = Vector3.new(root.Velocity.X, 0, root.Velocity.Z)
+            end)
+        end
+    end
+end
+local function onCharacterAddedSwim(character)
+    if swimConnections[character] then
+        for _, c in ipairs(swimConnections[character]) do pcall(function() c:Disconnect() end) end
+    end
+    swimConnections[character] = {}
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    local root = character:WaitForChild("HumanoidRootPart", 5)
+    if humanoid then
+        local connState = humanoid.StateChanged:Connect(function(_, new)
+            if swimDisabled and new == Enum.HumanoidStateType.Swimming then disableSwimImmediate(character) end
+        end)
+        table.insert(swimConnections[character], connState)
+    end
+    if root then
+        local connTouch = root.Touched:Connect(function(part)
+            if not swimDisabled then return end
+            if isWaterPart(part) then
+                disableSwimImmediate(character)
+                pcall(function() part.LocalTransparencyModifier = 1 part.CanCollide = false end)
+            end
+        end)
+        table.insert(swimConnections[character], connTouch)
+    end
+end
+if LocalPlayer.Character then onCharacterAddedSwim(LocalPlayer.Character) end
+LocalPlayer.CharacterAdded:Connect(onCharacterAddedSwim)
+swimBtn.MouseButton1Click:Connect(function()
+    swimDisabled = not swimDisabled
+    setToggle(swimBtn, swimDisabled, "🌊 Swim Disable: ON", "🌊 Swim Disable: OFF")
+    if swimDisabled then
+        hideWaterPartsClientSide()
+        if LocalPlayer.Character then disableSwimImmediate(LocalPlayer.Character) end
+    else
+        unhideWaterPartsClientSide()
+    end
+end)
+
+-- 10) Equip / Drop
+equipToolsBtn.MouseButton1Click:Connect(function()
+    local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+    if backpack and LocalPlayer.Character then
+        for _, v in pairs(backpack:GetChildren()) do
+            if v:IsA("Tool") or v:IsA("HopperBin") then v.Parent = LocalPlayer.Character end
+        end
+    end
+    notify("All tools equipped! 🎒")
+end)
+dropToolsBtn.MouseButton1Click:Connect(function()
+    local speaker = LocalPlayer
+    if not speaker.Character then return end
+    for _, v in pairs(speaker.Backpack:GetChildren()) do
+        if v:IsA("Tool") then v.Parent = speaker.Character end
+    end
+    task.wait()
+    for _, v in pairs(speaker.Character:GetChildren()) do
+        if v:IsA("Tool") then v.Parent = Workspace end
+    end
+    notify("All tools dropped! 🗑️")
+end)
+
+-- 11) NPC Kill Aura
+killBtn.MouseButton1Click:Connect(function()
+    killAuraEnabled = not killAuraEnabled
+    setToggle(killBtn, killAuraEnabled, "💀 NPC Kill Aura: ON", "💀 NPC Kill Aura: OFF")
+    if killAuraEnabled then
+        killAuraConn = RunService.Stepped:Connect(function()
+            local char = LocalPlayer.Character
+            local hrp1 = char and char:FindFirstChild("HumanoidRootPart")
+            if not hrp1 then return end
+            LocalPlayer.SimulationRadius = 150
+            for _, part in pairs(Workspace:GetPartBoundsInRadius(hrp1.Position, 18)) do
+                local model = part:FindFirstAncestorOfClass("Model")
+                if model and isnpc(model) and model ~= char then
+                    local hrp = model:FindFirstChild("HumanoidRootPart")
+                    local hum = model:FindFirstChildOfClass("Humanoid")
+                    if hrp and hum and partowner(hrp) and not hrp.Anchored then
+                        hum:ChangeState(Enum.HumanoidStateType.Dead)
+                        hum.Health = 0
+                    end
+                end
+            end
+        end)
+    else
+        if killAuraConn then killAuraConn:Disconnect() killAuraConn = nil end
+    end
+end)
+
+-- 12) NPC Jump Aura
+npcJumpBtn.MouseButton1Click:Connect(function()
+    npcJumpEnabled = not npcJumpEnabled
+    setToggle(npcJumpBtn, npcJumpEnabled, "🕺 NPC Jump Aura: ON", "🕺 NPC Jump Aura: OFF")
+    if npcJumpEnabled then
+        npcJumpConn = RunService.Heartbeat:Connect(function()
+            local hrp1 = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if not hrp1 then return end
+            LocalPlayer.SimulationRadius = 200
+            settings().Physics.AllowSleep = false
+            for _, part in pairs(Workspace:GetPartBoundsInRadius(hrp1.Position, 12)) do
+                local m = part:FindFirstAncestorOfClass("Model")
+                if m and isnpc(m) then
+                    local hum = m:FindFirstChildOfClass("Humanoid")
+                    if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
+                end
+            end
+        end)
+    else
+        if npcJumpConn then npcJumpConn:Disconnect() npcJumpConn = nil end
+    end
+end)
+
+-- 13) TP Unanchored
+tpUnanchoredBtn.MouseButton1Click:Connect(function()
+    local speaker = LocalPlayer
+    task.spawn(function()
+        for _ = 1, 30 do
+            pcall(function()
+                settings().Physics.AllowSleep = false
+                speaker.SimulationRadius = math.huge
+                if sethiddenproperty then
+                    sethiddenproperty(speaker, "SimulationRadius", math.huge)
+                    sethiddenproperty(speaker, "MaxSimulationRadius", math.huge)
+                end
+            end)
+            task.wait(0.2)
+        end
+    end)
+    task.spawn(function()
+        local ignore = {["Torso"]=true,["Head"]=true,["Right Arm"]=true,["Left Arm"]=true,["Right Leg"]=true,["Left Leg"]=true,["HumanoidRootPart"]=true}
+        local count = 0
+        local headPos = speaker.Character and speaker.Character:FindFirstChild('Head') and speaker.Character.Head.Position
+        if not headPos then return end
+        for _, part in pairs(Workspace:GetDescendants()) do
+            count += 1
+            if count % 500 == 0 then task.wait() end
+            if part:IsA("BasePart") and not part.Anchored and not part:IsDescendantOf(speaker.Character) and not ignore[part.Name] then
+                for _, c in pairs(part:GetChildren()) do
+                    if c:IsA("BodyPosition") or c:IsA("BodyGyro") then c:Destroy() end
+                end
+                local bp = Instance.new("BodyPosition")
+                bp.Position = headPos
+                bp.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+                bp.Parent = part
+                if not table.find(frozenParts, part) then table.insert(frozenParts, part) end
+            end
+        end
+    end)
+    notify("TP Unanchored Executed! 📦⚡")
+end)
+
+-- 14) X-Ray
+xrayBtn.MouseButton1Click:Connect(function()
+    xrayEnabled = not xrayEnabled
+    setToggle(xrayBtn, xrayEnabled, "💎 X-Ray Vision: ON", "💎 X-Ray Vision: OFF")
+    pcall(function()
+        for _, v in ipairs(Workspace:GetDescendants()) do
+            if v:IsA("BasePart") then
+                local model = v:FindFirstAncestorOfClass("Model")
+                local isCharacter = model and model:FindFirstChildOfClass("Humanoid")
+                if not isCharacter then v.LocalTransparencyModifier = xrayEnabled and 0.5 or 0 end
+            end
+        end
+    end)
+    notify(xrayEnabled and "X-Ray: ON 📸" or "X-Ray: OFF")
+end)
+
+-- 15) FullBright
+fullBrightBtn.MouseButton1Click:Connect(function()
+    fullBrightEnabled = not fullBrightEnabled
+    setToggle(fullBrightBtn, fullBrightEnabled, "☀️ FullBright: ON", "☀️ FullBright: OFF")
+    local function applyFullBright()
+        Lighting.Brightness = 2
+        Lighting.ClockTime = 14
+        Lighting.FogEnd = 100000
+        Lighting.GlobalShadows = false
+        Lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
+    end
+    if fullBrightEnabled then
+        originalLightingSettings = {
+            Brightness = Lighting.Brightness,
+            ClockTime = Lighting.ClockTime,
+            FogEnd = Lighting.FogEnd,
+            GlobalShadows = Lighting.GlobalShadows,
+            OutdoorAmbient = Lighting.OutdoorAmbient
+        }
+        applyFullBright()
+        brightLoopConn = RunService.RenderStepped:Connect(applyFullBright)
+        notify("FullBright ON ☀️")
+    else
+        if brightLoopConn then brightLoopConn:Disconnect() brightLoopConn = nil end
+        pcall(function()
+            Lighting.Brightness = originalLightingSettings.Brightness
+            Lighting.ClockTime = originalLightingSettings.ClockTime
+            Lighting.FogEnd = originalLightingSettings.FogEnd
+            Lighting.GlobalShadows = originalLightingSettings.GlobalShadows
+            Lighting.OutdoorAmbient = originalLightingSettings.OutdoorAmbient
+        end)
+        notify("FullBright OFF 🛑")
+    end
+end)
+
+-- 16) Titan Mass
+local function makeCharacterHeavy(char)
+    if not char then return end
+    pcall(function()
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CustomPhysicalProperties = PhysicalProperties.new(100, 0.3, 0.1, 1, 1)
+            end
+        end
+    end)
+end
+local function makePartGhostAndFloat(part)
+    if part:IsA("BasePart") and not part.Anchored then
+        if LocalPlayer.Character and not part:IsDescendantOf(LocalPlayer.Character) and not part.Parent:FindFirstChildOfClass("Humanoid") then
+            pcall(function()
+                part.CustomPhysicalProperties = PhysicalProperties.new(0.001, 0, 0, 0, 0)
+                part.CanCollide = false
+            end)
+        end
+    end
+end
+weightBtn.MouseButton1Click:Connect(function()
+    weightEnabled = not weightEnabled
+    setToggle(weightBtn, weightEnabled, "🛸 Titan Mass: ON", "🛸 Titan Mass: OFF")
+    if weightEnabled then
+        LocalPlayer.SimulationRadius = math.huge
+        pcall(function() LocalPlayer.MaximumSimulationRadius = math.huge end)
+        settings().Physics.AllowSleep = false
+        if LocalPlayer.Character then makeCharacterHeavy(LocalPlayer.Character) end
+        charMassConn = LocalPlayer.CharacterAdded:Connect(makeCharacterHeavy)
+        for _, obj in ipairs(Workspace:GetDescendants()) do makePartGhostAndFloat(obj) end
+        weightConn = Workspace.DescendantAdded:Connect(function(obj)
+            task.wait()
+            if weightEnabled then makePartGhostAndFloat(obj) end
+        end)
+        ghostLoopConn = RunService.RenderStepped:Connect(function()
+            local char = LocalPlayer.Character
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+            if not root then return end
+            for _, part in ipairs(Workspace:GetPartBoundsInRadius(root.Position, 60)) do
+                if not part.Anchored and not part:IsDescendantOf(char) and not part.Parent:FindFirstChildOfClass("Humanoid") then
+                    pcall(function()
+                        part.CanCollide = false
+                        local currentVel = part.AssemblyLinearVelocity
+                        local targetY = 0
+                        if part.Position.Y < root.Position.Y - 5 then
+                            targetY = 30
+                        elseif part.Position.Y < root.Position.Y + 8 then
+                            targetY = 12
+                        end
+                        part.AssemblyLinearVelocity = Vector3.new(currentVel.X, targetY, currentVel.Z)
+                        part.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                    end)
+                end
+            end
+        end)
+        notify("Titan Mass ON 🦾")
+    else
+        if weightConn then weightConn:Disconnect() weightConn = nil end
+        if ghostLoopConn then ghostLoopConn:Disconnect() ghostLoopConn = nil end
+        if charMassConn then charMassConn:Disconnect() charMassConn = nil end
+        pcall(function()
+            if LocalPlayer.Character then
+                for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
+                    if part:IsA("BasePart") then part.CustomPhysicalProperties = nil end
+                end
+            end
+            for _, obj in ipairs(Workspace:GetDescendants()) do
+                if obj:IsA("BasePart") and obj.CustomPhysicalProperties then
+                    obj.CustomPhysicalProperties = nil
+                    obj.CanCollide = true
+                end
+            end
+        end)
+        notify("Physics Normal 🛑")
+    end
+end)
+
+--// Rainbow Title
+task.spawn(function()
+    while true do
+        for h = 0, 1, 0.02 do
+            if not title.Parent then return end
+            title.TextColor3 = Color3.fromHSV(h, 0.8, 1)
+            task.wait(0.05)
+        end
+    end
+end)
